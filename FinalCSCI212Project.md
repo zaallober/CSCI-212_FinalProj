@@ -119,9 +119,9 @@ GUI Function
 
 Editing Calls
 
-- public void hexWrite(int offset, byte contents[])
-- public void hexInsert(int offset, int size, byte contents[], byte zeroFill) *zeroFill default to 0x00*
-- public void hexDelete(int offset, int size)
+- public void hexWrite(long offset, byte[] contents)
+- public void hexInsert(long offset, long size, char fill) *zeroFill default to 0x00*
+- public void hexDelete(long offset, long size)
 - public void hexUndo(void)
 - public void hexRedo(void)
 
