@@ -65,7 +65,7 @@ import java.io.IOException;
   public static void main(String[] args) {
     EditorEngine e = new EditorEngine();
 
-    e.readBuffer(e.hexLoad(args[0]));
+    e.readBuffer(e.hexLoad(args[0], Integer.parseInt(args[1])));
 
     return;
   }
