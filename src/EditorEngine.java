@@ -1,14 +1,11 @@
 import java.util.ArrayList;
-<<<<<<< HEAD
-import java.nio.file.*
-=======
+
 import java.util.List;
 import java.nio.file.*;
 
-
 import java.io.RandomAccessFile; // for file buffer
 import java.io.IOException;
->>>>>>> feature-filebuffering
+
 
     final public class EditorEngine {
 
