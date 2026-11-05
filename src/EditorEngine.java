@@ -9,7 +9,7 @@ import java.io.IOException;
 
     final public class EditorEngine {
 
-  private List<Edit> editHistory = new ArrayList<>();
+  private EditHistory history;
 
   private String filePath;
   private boolean fileFound;
@@ -64,6 +64,19 @@ import java.io.IOException;
     }
     System.out.println();
   }
+
+  public void hexWrite(long offset, byte[] contents) {
+    this.history.appendEdit(new Write(offset,contents));
+  }
+
+  public void hexInsert(long offset, long size, char fill) {
+    this.history.appendEdit(new Insert(offset,size,fill));
+  }
+
+  public void hexDelete(long offset, long size) {
+    this.history.appendEdit(new Delete(offset,size));
+  }
+
 
   public static void main(String[] args) {
     EditorEngine e = new EditorEngine();

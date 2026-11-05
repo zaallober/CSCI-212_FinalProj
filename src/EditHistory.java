@@ -7,7 +7,7 @@ final public class EditHistory {
     private final List<Edit> edits;
     private int head;
 
-    final public EditHistory() {
+    public EditHistory() {
         this.edits = new ArrayList<>();
         this.head = 0;
     }
