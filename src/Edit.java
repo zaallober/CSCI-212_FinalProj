@@ -1,24 +1,24 @@
-enum editType { WRITE, INSERT, DELETE }
+enum EditType { WRITE, INSERT, DELETE }
 
 abstract public class Edit {
-  final private editType type;
+  final private EditType type;
   final private long offset;
 
-  public Edit(editType type, long offset) {
+  public Edit(EditType type, long offset) {
     this.type = type;
     this.offset = offset;
   }
 
-  public editType getType() { return this.type; }
+  public EditType getType() { return this.type; }
 
   public long getOffset() { return this.offset; }
 }
 
-final public class Write extends Edit {
+final class Write extends Edit {
   final private byte[] contents;
 
   public Write(long offset, byte[] contents) {
-    super(editType.WRITE, offset);
+    super(EditType.WRITE, offset);
     this.contents =
         contents != null
             ? contents.clone()
@@ -29,7 +29,7 @@ final public class Write extends Edit {
   public byte[] getContents() { return this.contents.clone(); }
 }
 
-final public class Insert extends Edit {
+final class Insert extends Edit {
 
   final private long size;
   final private char fillInit;
@@ -42,7 +42,7 @@ final public class Insert extends Edit {
   }
 
   public Insert(long offset, long size, char fillInit) {
-    super(editType.INSERT, offset);
+    super(EditType.INSERT, offset);
     this.size = size;
     this.fillInit = fillInit;
   }
@@ -52,12 +52,12 @@ final public class Insert extends Edit {
   public char getFill() { return this.fillInit; }
 }
 
-final public class Delete extends Edit {
+final class Delete extends Edit {
 
   final private long size;
 
   public Delete(long offset, long size) {
-    super(editType.DELETE, offset);
+    super(EditType.DELETE, offset);
     this.size = size;
   }
 
