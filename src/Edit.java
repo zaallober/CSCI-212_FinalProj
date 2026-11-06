@@ -32,24 +32,35 @@ final class Write extends Edit {
 final class Insert extends Edit {
 
   final private long size;
-  final private char fillInit;
+  final private byte fillInit;
+  final private byte[] contents;
 
   public Insert(long offset,
                 long size) { // java doesn't support default arguments so we
                              // have to overload the constructor with an
                              // additional constructor that uses the default
-    this(offset, size, (char)0);
+    this(offset, size, (byte)0);
   }
 
-  public Insert(long offset, long size, char fillInit) {
+  public Insert(long offset, long size, byte fillInit) {
     super(EditType.INSERT, offset);
     this.size = size;
     this.fillInit = fillInit;
+    this.contents = null;
   }
+
+  public Insert(long offset, byte[] contents) {
+  super(EditType.INSERT, offset);
+  this.contents = contents.clone();
+  this.size = contents.length;
+  this.fillInit = (byte)0;
+  }
+
+
 
   public long getSize() { return this.size; }
 
-  public char getFill() { return this.fillInit; }
+  public byte getFill() { return this.fillInit; }
 }
 
 final class Delete extends Edit {
