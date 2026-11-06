@@ -63,10 +63,38 @@ The primary technical debt in this project is developing an engine that consumes
 
 Which, fun fact, this will involve writing an interpreter.
 
+
+## Prototype API
+File handling
+
+- public int hexSaveAs(string filename) *Save can be expressed as SaveAs current loaded file*
+- public int hexLoad(string filename)
+
+GUI Function
+
+- public byte[] generatePreview(int offset, int size) *default to 1KiB for size*
+
+Editing Calls
+
+- public void hexWrite(long offset, byte[] contents)
+- public void hexInsert(long offset, long size, char fill) *zeroFill default to 0x00*
+- public void hexDelete(long offset, long size)
+- public void hexUndo(void)
+- public void hexRedo(void)
+
 ## Implimentation
 
 * The smallest logical size of a file is zero. **EOF** is strictly a stream terminator.
 * Any loaded file is represented by a byte sequence.
+
+### EditHistory
+
+* Edit history is a class composed of a List<Edit> and an int head. 
+* head maintains the current operation, all previous edits live in preceding indices.
+
+#### Edit
+
+* Polymorphic parent class for all edits, contains type and offset data.
 
 ### Writing
 
@@ -107,21 +135,21 @@ Which, fun fact, this will involve writing an interpreter.
 
 * public hexUndo/hexRedo will walk the head of the edit history back and forward along its list respectively, iff a new edit is performed, the list will be resized to remove all edits that occured after the current head location, after which the next edit will be appended.
 
-## Prototype API
-File handling
+### Interpreter: a WIP
 
-- public int hexSaveAs(string filename) *Save can be expressed as SaveAs current loaded file*
-- public int hexLoad(string filename)
+* Interpretation begins with a seek offset, an EditHistory and a file buffer, and returns a preview buffer through applying each relevant transformation described in the edit history and returning the preview with a defensive copy.
+* The EditHistory represents a sequence of invertible transformations and augmentations.
+* The seek offset provided is representative of final seek after all edits have been applied.
 
-GUI Function
+* Because the EditHistory is invertible, the appropriate seek in the original file may be derived through adding or subtracting the additive inverse of each insertion or deletion's size placed earlier in the file than the present seek.
+* An accumulating reverse pass delta is used both in comparison for each step back along the edit history, as well as representing the final seek position to read from in the original file.
+* The derived original-file seek is the sum of the final delta and the seek offset provided as an argument.
+* The file buffer is then populated by loading bytes from the file at that original-file seek, populating up to the end of the buffer or EOF, whichever comes first.
 
-- public byte[] generatePreview(int offset, int size) *default to 1KiB for size*
+* Once the file buffer is populated, the Edit History may be traversed, this time chronologically.
+* An additional forward pass delta is maintained to ensure proper placement of edits. 
+* Every edit is checked for relevancy, and is skipped if neither its offset nor its affected bounds are represented in the preview buffer.
+* If an edit is determined to be relevant, it is performed on the preview buffer.
+* On all insertions or deletions preceding the original-file seek with the forward pass delta, the forward pass delta is again updated to maintain an accurate placement of proceding edits.
 
-Editing Calls
-
-- public void hexWrite(long offset, byte[] contents)
-- public void hexInsert(long offset, long size, char fill) *zeroFill default to 0x00*
-- public void hexDelete(long offset, long size)
-- public void hexUndo(void)
-- public void hexRedo(void)
-
+* Once the edit history has been traversed in its entirety, the Interpreter returns a defensive copy of the preview buffer.
