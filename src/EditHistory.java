@@ -14,6 +14,10 @@ final public class EditHistory {
 
     public int getHead() {return this.head;}
 
+    public Edit getEdit(int index) {
+        return this.edits.get(index);
+    }
+
     public void appendEdit(Edit edit) {
 
     while (this.edits.size()>this.head) {this.edits.remove(this.edits.size()-1);}
@@ -29,8 +33,6 @@ final public class EditHistory {
     public void redo() {
         if (this.head<this.edits.size()) {this.head++;}
     }
-
-
 
 }
 

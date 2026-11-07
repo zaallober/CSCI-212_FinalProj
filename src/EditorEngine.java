@@ -17,7 +17,7 @@ import java.io.IOException;
   private byte[] fileBuffer;
   private int fileBufferSize;
 
-  private int fileSeek;
+  private long previewSeek;
 
   private String state;
 
@@ -25,12 +25,8 @@ import java.io.IOException;
   public EditorEngine(int fileBufferSize) {
     this.fileBufferSize = fileBufferSize;
     this.fileBuffer = new byte[fileBufferSize];
-    this.fileSeek = 0;
-
-
-    // TODO init
+    this.previewSeek = 0;
   }
-
     public EditorEngine() {
     this(4096);
   }
@@ -40,7 +36,7 @@ import java.io.IOException;
 
   public int hexLoad(String filePath) { return hexLoad(filePath, 0); }
 
-  public int hexLoad(String filePath, int seek) {
+  public int hexLoad(String filePath, long seek) {
 
     int bytesRead = 0;
 
@@ -76,6 +72,48 @@ import java.io.IOException;
   public void hexDelete(long offset, long size) {
     this.history.appendEdit(new Delete(offset,size));
   }
+
+  private void OpInterpreter() {
+
+  EditHistory activeHistory = this.history;
+  long previewSeek = this.previewSeek;
+  long originalFileSeek;
+  long reversePassDelta = 0;
+  long forwardPassDelta = 0;
+
+  for (int i = activeHistory.getHead(); i >= 0; i--) {
+    if (activeHistory.getEdit(i).getType() == INSERT && activeHistory.getEdit(i).getOffset() < previewSeek) {
+      reversePassDelta -= activeHistory[i].getSize();
+    }
+    if (activeHistory.getEdit(i).getType() == DELETE && activeHistory.getEdit(i).getOffset() < previewSeek) {
+      reversePassDelta += activeHistory[i].getSize();
+    }
+  }
+  originalFileSeek = previewSeek+reversePassDelta;
+  this.hexLoad(this.filePath,originalFileSeek); // showtime motherfucker
+
+  for (int i = 0 ; i < activeHistory.getHead(); i++) {
+
+
+
+    switch (activeHistory[i].getType()) {
+      case EditType.WRITE:
+        break;
+      case EditType.INSERT:
+        break;
+      case EditType.DELETE:
+        break;
+    }
+  } // I can only hope the JVM finds a way to vectorize this.
+
+
+  }
+
+  public byte[] generatePreview() {}
+
+
+
+
 
 
   public static void main(String[] args) {
