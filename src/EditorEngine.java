@@ -14,17 +14,17 @@ import java.io.IOException;
   private String filePath;
   private boolean fileFound;
 
-  private byte[] fileBuffer;
-  private int fileBufferSize;
+  // private byte[] fileBuffer; retiring this to move ownership of file buffers to OpInterpreter() entirely.
+  private int previewBufferSize;
 
   private long previewSeek;
 
   private String state;
 
 
-  public EditorEngine(int fileBufferSize) {
-    this.fileBufferSize = fileBufferSize;
-    this.fileBuffer = new byte[fileBufferSize];
+  public EditorEngine(int previewBufferSize) {
+    this.previewBufferSize = previewBufferSize;
+    this.fileBuffer = new byte[previewBufferSize];
     this.previewSeek = 0;
   }
     public EditorEngine() {
@@ -32,25 +32,29 @@ import java.io.IOException;
   }
 
 
+
   public boolean isFileFound() { return fileFound; }
 
-  public int hexLoad(String filePath) { return hexLoad(filePath, 0); }
+  public void hexLoad(String filePath) {this.filePath = f; return;}
 
-  public int hexLoad(String filePath, long seek) {
-
-    int bytesRead = 0;
+  private byte[] hexLoad(int bufferSize, String filePath, long seek) {
 
     try (RandomAccessFile file = new RandomAccessFile(filePath,"r")) {
 
       file.seek(seek);
-      bytesRead = file.read(this.fileBuffer,0,this.fileBufferSize);
+
+      int available = (int) Math.min(bufferSize,file.length()-seek); //handles EOF better than initial impl.
+
+      byte[] fb = new byte[Math.max(0, available)]; // directly creates a new buffer that is correctly sized.
+
+      file.readFully(fb); //populates it as much as it can.
 
       //file.close(); //handled automaticall on scope escape
 
     } catch (IOException e) {
       e.printStackTrace();
     }
-    return bytesRead;
+    return fb; // return handle to new file buffer
   }
 
   public void readBuffer(int len) {
@@ -73,15 +77,18 @@ import java.io.IOException;
     this.history.appendEdit(new Delete(offset,size));
   }
 
-  private void OpInterpreter() {
+  private byte[] OpInterpreter(long previewSeek) {OpInterpreter(previewSeek,this.history.getHead(),this.previewBufferSize);}
+
+  private byte[] OpInterpreter(long previewSeek, int historyHead, int previewBufferSize) {
+
+  byte[] fb;
 
   EditHistory activeHistory = this.history;
-  long previewSeek = this.previewSeek;
   long originalFileSeek;
   long reversePassDelta = 0;
   long forwardPassDelta = 0;
 
-  for (int i = activeHistory.getHead(); i >= 0; i--) {
+  for (int i = historyHead; i >= 0; i--) {
     if (activeHistory.getEdit(i).getType() == INSERT && activeHistory.getEdit(i).getOffset() < previewSeek) {
       reversePassDelta -= activeHistory[i].getSize();
     }
@@ -90,18 +97,24 @@ import java.io.IOException;
     }
   }
   originalFileSeek = previewSeek+reversePassDelta;
-  this.hexLoad(this.filePath,originalFileSeek); // showtime motherfucker
+  fb = this.hexLoad(previewBufferSize, this.filePath, originalFileSeek); // showtime motherfucker :: receives newly created byte[] from callee.
 
-  for (int i = 0 ; i < activeHistory.getHead(); i++) {
+  for (int i = 0 ; i <= historyHead; i++) {
 
+  //if offset > filebuffer upper bound && op upper bound < offset, edit is irrelevant
 
-
-    switch (activeHistory[i].getType()) {
+    switch (activeHistory.getEdit(i).getType()) {
       case EditType.WRITE:
+        long upperBound = activeHistory.getEdit(i).getOffset+activeHistory.getEdit(i).getContents().length-1;
+        if ( &&) { // we add the -1, as write occupies its immediate offset, and its bound must reflect this
+
+        }
         break;
       case EditType.INSERT:
+
         break;
-      case EditType.DELETE:
+      case EditType.DELETE: // OOPS! Delete will involve recursively calling generatePreview. this presents a bit of a new problem though, hexLoad is relying on the fileBuffer owned by the engine. architecturally it's beginning to make a lot more sense to allocate that file buffer to the function scope of generatePreview. Changes to make this happen: hexLoad will now return byte[] copy by clone. a new overload, void hexLoad(String f) is born to set the filePath in the engine state.
+
         break;
     }
   } // I can only hope the JVM finds a way to vectorize this.
@@ -110,18 +123,5 @@ import java.io.IOException;
   }
 
   public byte[] generatePreview() {}
-
-
-
-
-
-
-  public static void main(String[] args) {
-    EditorEngine e = new EditorEngine();
-
-    e.readBuffer(e.hexLoad(args[0], Integer.parseInt(args[1])));
-
-    return;
-  }
 
 }
