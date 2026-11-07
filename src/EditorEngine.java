@@ -24,7 +24,6 @@ import java.io.IOException;
 
   public EditorEngine(int previewBufferSize) {
     this.previewBufferSize = previewBufferSize;
-    this.fileBuffer = new byte[previewBufferSize];
     this.previewSeek = 0;
   }
     public EditorEngine() {
@@ -35,9 +34,11 @@ import java.io.IOException;
 
   public boolean isFileFound() { return fileFound; }
 
-  public void hexLoad(String filePath) {this.filePath = f; return;}
+  public void hexLoad(String filePath) {this.filePath = filePath; return;}
 
   private byte[] hexLoad(int bufferSize, String filePath, long seek) {
+
+    byte[] fb = {};
 
     try (RandomAccessFile file = new RandomAccessFile(filePath,"r")) {
 
@@ -45,7 +46,7 @@ import java.io.IOException;
 
       int available = (int) Math.min(bufferSize,file.length()-seek); //handles EOF better than initial impl.
 
-      byte[] fb = new byte[Math.max(0, available)]; // directly creates a new buffer that is correctly sized.
+      fb = new byte[Math.max(0, available)]; // directly creates a new buffer that is correctly sized.
 
       file.readFully(fb); //populates it as much as it can.
 
@@ -57,9 +58,9 @@ import java.io.IOException;
     return fb; // return handle to new file buffer
   }
 
-  public void readBuffer(int len) {
+  public void readBuffer(int len, byte[] fb) {
     for (int i = 0 ; i < len ; i++ ) {
-      byte b = this.fileBuffer[i];
+      byte b = fb[i];
       System.out.printf("%02X ", b & 0xFF);
     }
     System.out.println();
@@ -69,7 +70,7 @@ import java.io.IOException;
     this.history.appendEdit(new Write(offset,contents));
   }
 
-  public void hexInsert(long offset, long size, char fill) {
+  public void hexInsert(long offset, long size, byte fill) {
     this.history.appendEdit(new Insert(offset,size,fill));
   }
 
@@ -77,7 +78,7 @@ import java.io.IOException;
     this.history.appendEdit(new Delete(offset,size));
   }
 
-  private byte[] OpInterpreter(long previewSeek) {OpInterpreter(previewSeek,this.history.getHead(),this.previewBufferSize);}
+  private byte[] OpInterpreter(long previewSeek) {return OpInterpreter(previewSeek,this.history.getHead(),this.previewBufferSize);}
 
   private byte[] OpInterpreter(long previewSeek, int historyHead, int previewBufferSize) {
 
@@ -90,10 +91,10 @@ import java.io.IOException;
 
   for (int i = historyHead; i >= 0; i--) {
     if (activeHistory.getEdit(i).getType() == INSERT && activeHistory.getEdit(i).getOffset() < previewSeek) {
-      reversePassDelta -= activeHistory[i].getSize();
+      reversePassDelta -= activeHistory.getEdit(i).getSize();
     }
     if (activeHistory.getEdit(i).getType() == DELETE && activeHistory.getEdit(i).getOffset() < previewSeek) {
-      reversePassDelta += activeHistory[i].getSize();
+      reversePassDelta += activeHistory.getEdit(i).getSize();
     }
   }
   originalFileSeek = previewSeek+reversePassDelta;

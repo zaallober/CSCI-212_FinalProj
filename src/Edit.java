@@ -27,7 +27,7 @@ final class Write extends Edit {
   }
 
   public byte[] getContents() { return this.contents.clone(); }
-  public long getUpperBound() { return (this.contents.length -1 + this.offset);}
+  public long getUpperBound() { return (this.contents.length -1 + super.getOffset());}
 }
 
 final class Insert extends Edit {
@@ -62,7 +62,7 @@ final class Insert extends Edit {
   public long getSize() { return this.size; }
 
   public long getUpperBound() { //walking back size amount of elements from the upper bound takes you to this.offset + 1.
-    return this.offset+this.size;
+    return super.getOffset()+this.size;
   }
 
   public byte getFill() { return this.fillInit; }

@@ -1,3 +1,5 @@
 example.txt
 *.class
 *.kate-swp
+.metadata
+.metadata/*
