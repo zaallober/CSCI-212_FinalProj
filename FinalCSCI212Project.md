@@ -65,14 +65,18 @@ Which, fun fact, this will involve writing an interpreter.
 
 
 ## Prototype API
+### Engine API
 File handling
 
 - public int hexSaveAs(string filename) *Save can be expressed as SaveAs current loaded file*
 - public int hexLoad(string filename)
 
+
 GUI Function
 
 - public byte[] generatePreview(int offset, int size) *default to 1KiB for size*
+- public long getFileSize(void)
+- public boolean isModified(void)
 
 Editing Calls
 
