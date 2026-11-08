@@ -107,15 +107,16 @@ final public class EditorEngine {
 
     for (int i = 0; i <= historyHead; i++) {
 
-      // if offset > filebuffer upper bound && op upper bound < offset, edit is
+      // if op offset > filebuffer upper bound && op upper bound < previewSeek, edit is
       // irrelevant
 
       switch (activeHistory.getEdit(i).getType()) {
       case EditType.WRITE:
         long upperBound = ((Write)activeHistory.getEdit(i)).getUpperBound();
-        if (true) { // we add the -1, as write occupies its immediate offset,
-                    // and its bound must reflect this
-        }
+        if (activeHistory.getEdit(i).getOffset() > previewSeek+previewBufferSize
+            &&
+            ((Write)activeHistory.getEdit(i)).getUpperBound() < previewSeek) {break;}
+
         break;
       case EditType.INSERT:
 
