@@ -74,7 +74,7 @@ File handling
 
 GUI Function
 
-- public byte[] generatePreview(int offset, int size) *default to 1KiB for size*
+- public byte[] generatePreview(int offset, int size) *returns a byte[] sequence whose length is the lesser of the size of what is available between the provided seek and EOF and the provided size argument, defaults to 4KiB*
 - public long getFileSize(void)
 - public boolean isModified(void)
 

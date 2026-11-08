@@ -55,11 +55,27 @@ final public class EditorEngine {
   }
 
   public void readBuffer(int len, byte[] fb) {
+    len = Math.min(len,fb.length); //guard against out of bounds indexing
     for (int i = 0; i < len; i++) {
       byte b = fb[i];
       System.out.printf("%02X ", b & 0xFF);
     }
     System.out.println();
+  }
+
+  public boolean isModified() {if (this.history.getHead()==-1) {return false;} else {return true;}}
+
+  public long getFileSize() {
+  if (this.filePath == null) {return 0;}
+
+  try (RandomAccessFile file = new RandomAccessFile(this.filePath,"r")) {
+
+    return file.length();
+
+  } catch (IOException e) {
+    e.printStackTrace();
+  }
+  return 0;
   }
 
   public void hexWrite(long offset, byte[] contents) {
@@ -73,6 +89,9 @@ final public class EditorEngine {
   public void hexDelete(long offset, long size) {
     this.history.appendEdit(new Delete(offset, size));
   }
+
+  public void hexUndo() {this.history.undo();}
+  public void hexRedo() {this.history.redo();}
 
   private byte[] OpInterpreter(long previewSeek) {
     return OpInterpreter(previewSeek, this.history.getHead(),
@@ -91,7 +110,7 @@ final public class EditorEngine {
 
     for (int i = historyHead; i >= 0; i--) {
       if (activeHistory.getEdit(i).getType() == EditType.INSERT &&
-          activeHistory.getEdit(i).getOffset() < previewSeek) {
+          activeHistory.getEdit(i).getOffset() <= previewSeek) {
         reversePassDelta -= ((Insert)activeHistory.getEdit(i))
                                 .getSize(); // downcast to child class
       }
@@ -100,26 +119,32 @@ final public class EditorEngine {
         reversePassDelta += ((Delete)activeHistory.getEdit(i)).getSize();
       }
     }
-    originalFileSeek = previewSeek + reversePassDelta;
+
+    originalFileSeek = Math.min(0,previewSeek + reversePassDelta);
     fb = this.hexLoad(previewBufferSize, this.filePath,
                       originalFileSeek); // showtime motherfucker :: receives
                                          // newly created byte[] from callee.
 
-    for (int i = 0; i <= historyHead; i++) {
+    for (int i = 0; i <= historyHead; i++) { //now correctly skips both passes as head represents index instead of count now.
 
-      // if op offset > filebuffer upper bound && op upper bound < previewSeek, edit is
+      // if op offset > filebuffer upper bound || op upper bound < previewSeek, edit is
       // irrelevant
+      // conversely,
+      // if previewSeek <= op offset && op offset <= filebuffer upper bound, edit is
+      // relevant
 
       switch (activeHistory.getEdit(i).getType()) {
       case EditType.WRITE:
         long upperBound = ((Write)activeHistory.getEdit(i)).getUpperBound();
         if (activeHistory.getEdit(i).getOffset() > previewSeek+previewBufferSize
-            &&
-            ((Write)activeHistory.getEdit(i)).getUpperBound() < previewSeek) {break;}
+            ||
+            ((Write)activeHistory.getEdit(i)).getUpperBound() < previewSeek) {break;} //Early exit for irrelevancy
+
+        // TODO Actually implement write.
 
         break;
       case EditType.INSERT:
-
+        // TODO Actually implement insert
         break;
       case EditType
           .DELETE: // OOPS! Delete will involve recursively calling
@@ -131,7 +156,7 @@ final public class EditorEngine {
                    // will now return byte[] copy by clone. a new overload, void
                    // hexLoad(String f) is born to set the filePath in the
                    // engine state.
-
+        // TODO Actually implement Delete
         break;
       }
     } // I can only hope the JVM finds a way to vectorize this.
@@ -139,5 +164,5 @@ final public class EditorEngine {
     return fb;
   }
 
-  // public byte[] generatePreview() {}
+  // public byte[] generatePreview() {} //TODO implement this puppy
 }

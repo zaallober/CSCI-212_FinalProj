@@ -9,7 +9,7 @@ final public class EditHistory {
 
     public EditHistory() {
         this.edits = new ArrayList<>();
-        this.head = 0;
+        this.head = -1; //init to -1, head no longer represents a count but the actual active edit on the stack. additionally provides an easy check to see if there are any edits. if .getHead()==-1, the list is empty. negative value really conveniently communicates state.
     }
 
     public int getHead() {return this.head;}
@@ -27,7 +27,7 @@ final public class EditHistory {
     }
 
     public void undo() {
-        if (this.head > 0) {this.head -= 1;}
+        if (this.head >= 0) {this.head -= 1;}
     }
 
     public void redo() {
