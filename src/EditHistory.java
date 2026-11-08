@@ -20,7 +20,7 @@ final public class EditHistory {
 
     public void appendEdit(Edit edit) {
 
-    while (this.edits.size()>this.head) {this.edits.remove(this.edits.size()-1);}
+    while (this.edits.size()>this.head+1) {this.edits.remove(this.edits.size()-1);} //corrected head to count here with a +1
 
     this.edits.add(edit);
     this.head++;

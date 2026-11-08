@@ -6,7 +6,6 @@ final public class EditorEngine {
   private EditHistory history;
 
   private String filePath;
-  private boolean fileFound;
 
   // private byte[] fileBuffer; retiring this to move ownership of file buffers
   // to OpInterpreter() entirely.
@@ -19,10 +18,19 @@ final public class EditorEngine {
   public EditorEngine(int previewBufferSize) {
     this.previewBufferSize = previewBufferSize;
     this.previewSeek = 0;
+    this.history = new EditHistory();
   }
   public EditorEngine() { this(4096); }
 
-  public boolean isFileFound() { return fileFound; }
+  public boolean isFileFound() {
+      if (this.filePath == null) {return false;}
+      try (RandomAccessFile file = new RandomAccessFile(this.filePath,"r")) {
+          return true;
+      } catch (IOException e) {
+      e.printStackTrace();
+      return false;
+      }
+    }
 
   public void hexLoad(String filePath) {
     this.filePath = filePath;
@@ -45,7 +53,6 @@ final public class EditorEngine {
                                              // that is correctly sized.
 
       file.readFully(fb); // populates it as much as it can.
-
       // file.close(); //handled automaticall on scope escape
 
     } catch (IOException e) {
@@ -120,7 +127,7 @@ final public class EditorEngine {
       }
     }
 
-    originalFileSeek = Math.min(0,previewSeek + reversePassDelta);
+    originalFileSeek = Math.max(0,previewSeek + reversePassDelta);
     fb = this.hexLoad(previewBufferSize, this.filePath,
                       originalFileSeek); // showtime motherfucker :: receives
                                          // newly created byte[] from callee.
