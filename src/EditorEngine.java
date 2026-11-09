@@ -108,7 +108,7 @@ final public class EditorEngine {
   private byte[] OpInterpreter(long previewSeek, int historyHead,
                                int previewBufferSize) {
 
-    byte[] fb;
+    byte[] pb;
 
     EditHistory activeHistory = this.history;
     long originalFileSeek;
@@ -128,7 +128,7 @@ final public class EditorEngine {
     }
 
     originalFileSeek = Math.max(0,previewSeek + reversePassDelta);
-    fb = this.hexLoad(previewBufferSize, this.filePath,
+    pb = this.hexLoad(previewBufferSize, this.filePath,
                       originalFileSeek); // showtime motherfucker :: receives
                                          // newly created byte[] from callee.
 
@@ -143,9 +143,19 @@ final public class EditorEngine {
       switch (activeHistory.getEdit(i).getType()) {
       case EditType.WRITE:
         long upperBound = ((Write)activeHistory.getEdit(i)).getUpperBound();
-        if (activeHistory.getEdit(i).getOffset() > previewSeek+previewBufferSize
+        if (forwardPassDelta+activeHistory.getEdit(i).getOffset() > previewSeek+previewBufferSize
             ||
-            ((Write)activeHistory.getEdit(i)).getUpperBound() < previewSeek) {break;} //Early exit for irrelevancy
+            ((Write)activeHistory.getEdit(i)).getUpperBound()+forwardPassDelta< previewSeek) {break;} //Early exit for irrelevancy
+
+            long editFrameIndex = activeHistory.getEdit(i).getOffset()-originalFileSeek+forwardPassDelta; //we love pointer arithmetic
+
+            byte[] cb = ((Write)activeHistory.getEdit(i)).getContents();
+
+            for (int j = 0;j<cb.length;j++) {
+              if (editFrameIndex+j >= pb.length) {break;} //upper bound guarding
+              if (editFrameIndex+j < 0) {continue;}
+              pb[((int)editFrameIndex+j)] = cb[j];
+            }
 
         // TODO Actually implement write.
 
@@ -168,7 +178,7 @@ final public class EditorEngine {
       }
     } // I can only hope the JVM finds a way to vectorize this.
 
-    return fb;
+    return pb;
   }
 
   // public byte[] generatePreview() {} //TODO implement this puppy
