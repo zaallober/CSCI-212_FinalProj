@@ -105,6 +105,68 @@ final public class EditorEngine {
                          this.previewBufferSize);
   }
 
+
+
+  public long getPreviewFileSize() { //required both for gui presentation but solving a dependency issue fawned by extending writes/inserts in calcReversePassDelta, previously the simple model with inserts and deletes was enough,
+    return getPreviewFileSize(getFileSize(),this.history.getHead(),this.history);
+  }
+
+  private long getPreviewFileSize(long rawFileLength,int historyHead, EditHistory activeHistory) {
+    long previewFileSize = rawFileLength;
+
+    for (int i=0; i<historyHead;i++) {
+      long offset = activeHistory.getEdit(i).getOffset();
+      switch (activeHistory.getEdit(i).getType()) {
+        case EditType.WRITE:
+          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
+          previewFileSize += Math.max(((Write)activeHistory.getEdit(i)).getUpperBound()-previewFileSize,0);
+          break;
+        case EditType.INSERT:
+          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
+          previewFileSize += ((Insert)activeHistory.getEdit(i)).getSize();
+          break;
+        case EditType.DELETE:
+          if (offset >= previewFileSize) {break;} // ignore deletes past EOF // undetermined whethr or not > is the correct comparator here. > suggests offset marks the beginning, which would mirror Insert semantics
+          previewFileSize -= Math.min(previewFileSize-offset,((Delete)activeHistory.getEdit(i)).getSize());
+          break;
+      }
+    }
+    return previewFileSize;
+  }
+
+
+  private long calcReversePassDelta(long previewSeek, int historyHead, EditHistory activeHistory) {
+    long reversePassDelta = 0;
+    long rawFileLength = getFileSize();
+
+    for (int i = historyHead; i >= 0; i--) {
+
+      switch (activeHistory.getEdit(i).getType()) {
+        case EditType.INSERT:
+          if (activeHistory.getEdit(i).getOffset() < previewSeek) {
+            reversePassDelta -= ((Insert)activeHistory.getEdit(i)).getSize();
+          }
+          break;
+        case EditType.DELETE:
+          if (activeHistory.getEdit(i).getOffset() < previewSeek) {
+            reversePassDelta += ((Delete)activeHistory.getEdit(i)).getSize();
+          }
+          break;
+        case EditType.WRITE: // to accomodate for writes beyond EOF, rpd needs to correctly catch and account for these.
+          //TODO catch logic for this implementation
+          //
+          // if offset+contents.size()-1 > rawFileLength+reversePassDelta then handle offset + contents.size()-1 -= rpd
+          //
+          // need to algorithmically treat these cases like they are inserts
+          // beginning at EOF for
+          // calculating rpd
+
+          break;
+      }
+    }
+    return reversePassDelta;
+  }
+
   private byte[] OpInterpreter(long previewSeek, int historyHead,
                                int previewBufferSize) {
 
@@ -115,17 +177,8 @@ final public class EditorEngine {
     long reversePassDelta = 0;
     long forwardPassDelta = 0;
 
-    for (int i = historyHead; i >= 0; i--) {
-      if (activeHistory.getEdit(i).getType() == EditType.INSERT &&
-          activeHistory.getEdit(i).getOffset() <= previewSeek) {
-        reversePassDelta -= ((Insert)activeHistory.getEdit(i))
-                                .getSize(); // downcast to child class
-      }
-      if (activeHistory.getEdit(i).getType() == EditType.DELETE &&
-          activeHistory.getEdit(i).getOffset() < previewSeek) {
-        reversePassDelta += ((Delete)activeHistory.getEdit(i)).getSize();
-      }
-    }
+
+    reversePassDelta = calcReversePassDelta(previewSeek,historyHead,activeHistory);
 
     originalFileSeek = Math.max(0,previewSeek + reversePassDelta);
     pb = this.hexLoad(previewBufferSize, this.filePath,
@@ -149,6 +202,8 @@ final public class EditorEngine {
 
             long editFrameIndex = activeHistory.getEdit(i).getOffset()-originalFileSeek+forwardPassDelta; //we love pointer arithmetic
 
+            if (editFrameIndex>Integer.MAX_VALUE) {throw new IndexOutOfBoundsException("Frame index is out of bounds");}
+
             byte[] cb = ((Write)activeHistory.getEdit(i)).getContents();
 
             for (int j = 0;j<cb.length;j++) {
@@ -157,7 +212,7 @@ final public class EditorEngine {
               pb[((int)editFrameIndex+j)] = cb[j];
             }
 
-        // TODO Actually implement write.
+        // TODO Implement sequence extension logic for cases wherein EOF < offset. extend sequence by offset-EOF+contents.length+1, then write. which, this kinda fucking sucks. Will have to revisit reversePassDelta calcs.
 
         break;
       case EditType.INSERT:

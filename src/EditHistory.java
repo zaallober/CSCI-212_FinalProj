@@ -31,7 +31,7 @@ final public class EditHistory {
     }
 
     public void redo() {
-        if (this.head<this.edits.size()) {this.head++;}
+        if (this.head<this.edits.size()-1) {this.head++;} //corrected size to index here
     }
 
 }
