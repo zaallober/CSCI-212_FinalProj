@@ -6,6 +6,7 @@ abstract public class Edit {
 
   public Edit(EditType type, long offset) {
     this.type = type;
+    if (offset < 0) {throw new IllegalArgumentException("Offset Cannot Be Negative!");}
     this.offset = offset;
   }
 
@@ -27,7 +28,7 @@ final class Write extends Edit {
   }
 
   public byte[] getContents() { return this.contents.clone(); }
-  public long getUpperBound() { return (this.contents.length -1 + super.getOffset());}
+  public long getUpperBound() { return (this.contents.length -1 + super.getOffset());} // sub one to account for the fact that a write begins at offset, ie, the calc for upper bound is inclusive of the offset. 10 byte file, a write at offset 10 extends past eof after offset 9 of the original file, consequently the upper bound of a write past EOF is its offset + its size minus one.
 }
 
 final class Insert extends Edit {
@@ -45,6 +46,7 @@ final class Insert extends Edit {
 
   public Insert(long offset, long size, byte fillInit) {
     super(EditType.INSERT, offset);
+    if (size <0) {throw new IllegalArgumentException("Size Cannot Be Negative!");}
     this.size = size;
     this.fillInit = fillInit;
     this.contents = null;
@@ -74,6 +76,7 @@ final class Delete extends Edit {
 
   public Delete(long offset, long size) {
     super(EditType.DELETE, offset);
+    if (size < 0) {throw new IllegalArgumentException("Size Cannot Be Negative!");}
     this.size = size;
   }
 

@@ -13,7 +13,7 @@ final public class EditorEngine {
 
   private long previewSeek;
 
-  private String state;
+  private byte defaultFill = (byte) 0;
 
   public EditorEngine(int previewBufferSize) {
     this.previewBufferSize = previewBufferSize;
@@ -85,8 +85,20 @@ final public class EditorEngine {
   return 0;
   }
 
+  public void setFill(byte fill) {
+    this.defaultFill = fill;
+  }
+
   public void hexWrite(long offset, byte[] contents) {
     this.history.appendEdit(new Write(offset, contents));
+  }
+
+  public void hexInsert(long offset, byte[] contents) {
+    this.history.appendEdit(new Insert(offset, contents)); //insert substring support
+  }
+
+  public void hexInsert(long offset, long size) {
+    this.history.appendEdit(new Insert(offset,size,this.defaultFill));
   }
 
   public void hexInsert(long offset, long size, byte fill) {
@@ -114,12 +126,12 @@ final public class EditorEngine {
   private long getPreviewFileSize(long rawFileLength,int historyHead, EditHistory activeHistory) {
     long previewFileSize = rawFileLength;
 
-    for (int i=0; i<historyHead;i++) {
+    for (int i=0; i<=historyHead;i++) {
       long offset = activeHistory.getEdit(i).getOffset();
       switch (activeHistory.getEdit(i).getType()) {
         case EditType.WRITE:
           if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
-          previewFileSize += Math.max(((Write)activeHistory.getEdit(i)).getUpperBound()-previewFileSize,0);
+          previewFileSize += Math.max(((Write)activeHistory.getEdit(i)).getUpperBound()+1-previewFileSize,0); //getUpperBound returns an index. +1 to correct into a count.
           break;
         case EditType.INSERT:
           if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
@@ -135,9 +147,10 @@ final public class EditorEngine {
   }
 
 
-  private long calcReversePassDelta(long previewSeek, int historyHead, EditHistory activeHistory) {
+  private long calcReversePassDelta(long previewSeek, int historyHead, EditHistory activeHistory) { //needs redone to account for extending writes/inserts
     long reversePassDelta = 0;
     long rawFileLength = getFileSize();
+    long effectiveFileLength = getPreviewFileSize(rawFileLength,historyHead,activeHistory);
 
     for (int i = historyHead; i >= 0; i--) {
 
