@@ -76,13 +76,19 @@ GUI Function
 
 - public byte[] generatePreview(int offset, int size) *returns a byte[] sequence whose length is the lesser of the size of what is available between the provided seek and EOF and the provided size argument, defaults to 4KiB*
 - public long getFileSize(void)
+- public long getPreviewFileSize(void)
 - public boolean isModified(void)
 
 Editing Calls
-
+- public void setFill(byte fill)
 - public void hexWrite(long offset, byte[] contents)
-- public void hexInsert(long offset, long size, char fill) *zeroFill default to 0x00*
+
+- public void hexInsert(long offset, byte[] contents)
+- public void hexInsert(long offset, long size)
+- public void hexInsert(long offset, long size, byte init) 
+
 - public void hexDelete(long offset, long size)
+
 - public void hexUndo(void)
 - public void hexRedo(void)
 
