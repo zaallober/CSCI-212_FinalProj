@@ -13,7 +13,25 @@ abstract public class Edit {
   public EditType getType() { return this.type; }
 
   public long getOffset() { return this.offset; }
-}
+
+  public long getUpperBound() {
+
+    switch (this.type) {
+
+    case EditType.WRITE:
+      return (((Write)this).getContents().length -1 + this.offset);
+    case EditType.INSERT:
+      return offset+((Insert)this).getSize();
+    case EditType.DELETE:
+      return offset+((Delete)this).getSize();
+    default:
+      return offset;
+
+    }
+
+  }
+
+  }
 
 final class Write extends Edit {
   final private byte[] contents;

@@ -1,5 +1,6 @@
 import java.io.IOException;
 import java.io.RandomAccessFile; // for file buffer
+import java.util.Arrays;
 
 final public class EditorEngine {
 
@@ -118,6 +119,26 @@ final public class EditorEngine {
   }
 
 
+    private long calcDiff(Edit edit,long previewFileSize) {
+          long offset = edit.getOffset();
+          long diff = 0;
+      switch (edit.getType()) {
+        case EditType.WRITE:
+          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
+          diff += Math.max(((Write)edit).getUpperBound()+1-previewFileSize,0); //getUpperBound returns an index. +1 to correct into a count.
+          break;
+        case EditType.INSERT:
+          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
+          diff += ((Insert)edit).getSize();
+          break;
+        case EditType.DELETE:
+          if (offset >= previewFileSize) {break;} // ignore deletes past EOF // undetermined whethr or not > is the correct comparator here. > suggests offset marks the beginning, which would mirror Insert semantics
+          diff -= Math.min(previewFileSize-offset,((Delete)edit).getSize());
+          break;
+          }
+          return diff;
+  }
+
 
   public long getPreviewFileSize() { //required both for gui presentation but solving a dependency issue fawned by extending writes/inserts in calcReversePassDelta, previously the simple model with inserts and deletes was enough,
     return getPreviewFileSize(getFileSize(),this.history.getHead(),this.history);
@@ -127,52 +148,33 @@ final public class EditorEngine {
     long previewFileSize = rawFileLength;
 
     for (int i=0; i<=historyHead;i++) {
-      long offset = activeHistory.getEdit(i).getOffset();
-      switch (activeHistory.getEdit(i).getType()) {
-        case EditType.WRITE:
-          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
-          previewFileSize += Math.max(((Write)activeHistory.getEdit(i)).getUpperBound()+1-previewFileSize,0); //getUpperBound returns an index. +1 to correct into a count.
-          break;
-        case EditType.INSERT:
-          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
-          previewFileSize += ((Insert)activeHistory.getEdit(i)).getSize();
-          break;
-        case EditType.DELETE:
-          if (offset >= previewFileSize) {break;} // ignore deletes past EOF
-          previewFileSize -= Math.min(previewFileSize-offset,((Delete)activeHistory.getEdit(i)).getSize());
-          break;
-      }
+      previewFileSize += calcDiff(activeHistory.getEdit(i),previewFileSize);
     }
     return previewFileSize;
   }
 
-
-  private long calcReversePassDelta(long previewSeek, int historyHead, EditHistory activeHistory) { //RPD DNE IFF PREVIEWSEEK EXCEEDS ALL PRIOR EDITS' CUMULATIVE MAXBACKEDINDEX //needs redone to account for extending writes/inserts
+  private long calcReversePassDelta(long previewSeek, int historyHead, EditHistory activeHistory) {
     long reversePassDelta = 0;
-    long rawFileLength = getFileSize();
-    long effectiveFileLength;
+
+    long[] diff = new long[historyHead+1];
 
     for (int i = historyHead; i >= 0; i--) {
+      diff[i] = getPreviewFileSize(getFileSize(),i-1,activeHistory) - getPreviewFileSize(getFileSize(),i,activeHistory);
+    }
 
-      effectiveFileLength = getPreviewFileSize(rawFileLength,historyHead-1,activeHistory);
+    for (int i = historyHead; i >= 0; i--) {
+      Edit edit = activeHistory.getEdit(i);
+      long effectiveSeek = previewSeek+reversePassDelta;
 
-      switch (activeHistory.getEdit(i).getType()) {
+      if (edit.getUpperBound() <= effectiveSeek) {reversePassDelta += diff[i]; continue;}
+      // early exit for preceding & relevant
+      if (edit.getOffset() <= effectiveSeek && effectiveSeek <= edit.getUpperBound()) {
 
-      case EditType.WRITE:
-        break;
-      case EditType.INSERT:
-        if (((Insert)activeHistory.getEdit(i)).getUpperBound() > previewSeek+reversePassDelta){
-          if (activeHistory.getEdit(i).getOffset() > effectiveFileLength) { //extending op
-              reversePassDelta -= effectiveFileLength - (1 + ((Insert)activeHistory.getEdit(i)).getUpperBound()); // +1 to convert to count from index.
-            }
-          }
-        }
+        if (edit.getType() == EditType.DELETE) {reversePassDelta += diff[i]; continue;} //short circuit for straddled deletes
 
-        break;
-      case EditType.DELETE:
-        break;
+        reversePassDelta += diff[i] - (edit.getUpperBound()-effectiveSeek);
 
-      }
+        continue;
       }
     }
     return reversePassDelta;
@@ -180,6 +182,8 @@ final public class EditorEngine {
 
   private byte[] OpInterpreter(long previewSeek, int historyHead,
                                int previewBufferSize) {
+
+
 
     byte[] pb;
 
@@ -192,9 +196,14 @@ final public class EditorEngine {
     reversePassDelta = calcReversePassDelta(previewSeek,historyHead,activeHistory);
 
     originalFileSeek = Math.max(0,previewSeek + reversePassDelta);
-    pb = this.hexLoad(previewBufferSize, this.filePath,
+    byte[] fb = this.hexLoad(previewBufferSize, this.filePath,
                       originalFileSeek); // showtime motherfucker :: receives
                                          // newly created byte[] from callee.
+
+    if (fb.length < previewBufferSize) { //catch EOF straddling reads
+      int targetSize = (int) Math.min((long) previewBufferSize,getPreviewFileSize()-previewSeek);
+      pb = Arrays.copyOf(fb, targetSize);
+    } else {pb = fb;}
 
     for (int i = 0; i <= historyHead; i++) { //now correctly skips both passes as head represents index instead of count now.
 
