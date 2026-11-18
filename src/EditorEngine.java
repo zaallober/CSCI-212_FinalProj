@@ -191,13 +191,13 @@ final public class EditorEngine {
 
     EditHistory activeHistory = this.history;
     long originalFileSeek;
-    long reversePassDelta = 0;
-    long forwardPassDelta = 0;
+    long reversePassDelta[] = new long[historyHead+1];
 
 
-    reversePassDelta = calcReversePassDelta(previewSeek,historyHead,activeHistory);
+    for (int n = historyHead+1; n > 0; n--)
+    {reversePassDelta[n] = calcReversePassDelta(previewSeek,n,activeHistory);}
 
-    originalFileSeek = Math.max(0,previewSeek + reversePassDelta);
+    originalFileSeek = Math.max(0,previewSeek + reversePassDelta[historyHead]);
     byte[] fb = this.hexLoad(previewBufferSize, this.filePath,
                       originalFileSeek); // showtime motherfucker :: receives
                                          // newly created byte[] from callee.
@@ -214,6 +214,9 @@ final public class EditorEngine {
       // conversely,
       // if previewSeek <= op offset && op offset <= filebuffer upper bound, edit is
       // relevant
+
+      long forwardPassDelta = reversePassDelta[historyHead-i];
+
       byte[] cb;
       long upperBound = activeHistory.getEdit(i).getUpperBound();
 
