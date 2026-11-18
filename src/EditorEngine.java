@@ -119,24 +119,25 @@ final public class EditorEngine {
   }
 
 
-    private long calcDiff(Edit edit,long previewFileSize) {
+    private long calcDiff(Edit edit, long previewFileSize) {
           long offset = edit.getOffset();
-          long diff = 0;
+          long originalSize = previewFileSize;
       switch (edit.getType()) {
         case EditType.WRITE:
-          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
-          diff += Math.max(((Write)edit).getUpperBound()+1-previewFileSize,0); //getUpperBound returns an index. +1 to correct into a count.
+          if (offset > previewFileSize) previewFileSize = offset;
+          long writeEnd = ((Write)edit).getUpperBound() + 1;
+          if (writeEnd > previewFileSize) previewFileSize = writeEnd;
           break;
         case EditType.INSERT:
-          if (offset > previewFileSize) {previewFileSize += (offset-previewFileSize);}
-          diff += ((Insert)edit).getSize();
+          if (offset > previewFileSize) previewFileSize = offset;
+          previewFileSize += ((Insert)edit).getSize();
           break;
         case EditType.DELETE:
-          if (offset >= previewFileSize) {break;} // ignore deletes past EOF // undetermined whethr or not > is the correct comparator here. > suggests offset marks the beginning, which would mirror Insert semantics
-          diff -= Math.min(previewFileSize-offset,((Delete)edit).getSize());
+          if (offset >= previewFileSize) return 0;
+          previewFileSize -= Math.min(previewFileSize - offset, ((Delete)edit).getSize());
           break;
-          }
-          return diff;
+      }
+          return previewFileSize - originalSize;
   }
 
 
@@ -202,7 +203,7 @@ final public class EditorEngine {
                                          // newly created byte[] from callee.
 
     if (fb.length < previewBufferSize) { //catch EOF straddling reads
-      int targetSize = (int) Math.min((long) previewBufferSize,getPreviewFileSize()-(previewSeek+1));
+      int targetSize = (int) Math.min((long) previewBufferSize,getPreviewFileSize()-previewSeek);
       pb = Arrays.copyOf(fb, targetSize);
     } else {pb = fb;}
 
@@ -244,28 +245,27 @@ final public class EditorEngine {
             ||
             (activeHistory.getEdit(i)).getUpperBound()+forwardPassDelta < previewSeek) {break;} //Early exit for irrelevancy
 
-        int preserveSpace =(int) Math.max(0,activeHistory.getEdit(i).getOffset()-(previewSeek)); // amount of indices before insert region begins in frame.
-        int shiftedSpace = Math.min(previewBufferSize,(int) Math.max(0,previewSeek+(previewBufferSize)-activeHistory.getEdit(i).getUpperBound())); // amount of indices present after the insert region in frame.)
+        long insSize = ((Insert) activeHistory.getEdit(i)).getSize();
+        int insIdx  = (int) editFrameIndex;
+        int sz      = (int) insSize;
 
-        for (int k = 0;k<shiftedSpace;k++) {
-
-          pb[pb.length-1-k] = pb[preserveSpace+shiftedSpace-k-1];
-
+        // shift the tail right by sz, in reverse so sources aren't overwritten
+        for (int x = pb.length - 1; x >= insIdx + sz; x--) {
+          pb[x] = pb[x - sz];
         }
 
-            if (((Insert)activeHistory.getEdit(i)).getContents() == null) {
-            cb = new byte[(int) ((Insert) activeHistory.getEdit(i)).getSize()];
-            Arrays.fill(cb, (byte) ((Insert)activeHistory.getEdit(i)).getFill());
-            }
-            else
-            {
-            cb = ((Insert)activeHistory.getEdit(i)).getContents();}
+        Insert insEdit = (Insert) activeHistory.getEdit(i);
+        byte[] insBytes;
+        if (insEdit.getContents() != null) {
+          insBytes = insEdit.getContents();
+        } else {
+          insBytes = new byte[sz];
+          Arrays.fill(insBytes, insEdit.getFill());
+        }
 
-            for (int j = 0;j<cb.length;j++) {
-              if (editFrameIndex+j >= pb.length) {break;} //upper bound guarding
-              if (editFrameIndex+j < 0) {continue;}
-              pb[((int)editFrameIndex+j)] = cb[j];
-            }
+        for (int j = 0; j < sz && j < insBytes.length; j++) {
+          pb[insIdx + j] = insBytes[j];
+        }
 
         break;
       case EditType.DELETE:
