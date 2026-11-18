@@ -172,12 +172,13 @@ final public class EditorEngine {
 
         if (edit.getType() == EditType.DELETE) {reversePassDelta += diff[i]; continue;} //short circuit for straddled deletes
 
-        reversePassDelta += diff[i] - (edit.getUpperBound()-effectiveSeek);
+
+        reversePassDelta += diff[i] - (effectiveSeek - edit.getOffset()+1);
 
         continue;
       }
     }
-    return reversePassDelta;
+    return reversePassDelta; // sum of rpd and originalFileSize ≥ 0, potentially greater than originalFileSize
   }
 
   private byte[] OpInterpreter(long previewSeek, int historyHead,
@@ -201,7 +202,7 @@ final public class EditorEngine {
                                          // newly created byte[] from callee.
 
     if (fb.length < previewBufferSize) { //catch EOF straddling reads
-      int targetSize = (int) Math.min((long) previewBufferSize,getPreviewFileSize()-previewSeek);
+      int targetSize = (int) Math.min((long) previewBufferSize,getPreviewFileSize()-(previewSeek+1));
       pb = Arrays.copyOf(fb, targetSize);
     } else {pb = fb;}
 
@@ -212,19 +213,21 @@ final public class EditorEngine {
       // conversely,
       // if previewSeek <= op offset && op offset <= filebuffer upper bound, edit is
       // relevant
+      byte[] cb;
+      long upperBound = activeHistory.getEdit(i).getUpperBound();
+
+      long editFrameIndex = activeHistory.getEdit(i).getOffset()-originalFileSeek+forwardPassDelta; //we love pointer arithmetic
+
+      if (editFrameIndex>Integer.MAX_VALUE) {throw new IndexOutOfBoundsException("Frame index is out of bounds");}
 
       switch (activeHistory.getEdit(i).getType()) {
       case EditType.WRITE:
-        long upperBound = ((Write)activeHistory.getEdit(i)).getUpperBound();
+
         if (forwardPassDelta+activeHistory.getEdit(i).getOffset() > previewSeek+previewBufferSize
             ||
             ((Write)activeHistory.getEdit(i)).getUpperBound()+forwardPassDelta< previewSeek) {break;} //Early exit for irrelevancy
 
-            long editFrameIndex = activeHistory.getEdit(i).getOffset()-originalFileSeek+forwardPassDelta; //we love pointer arithmetic
-
-            if (editFrameIndex>Integer.MAX_VALUE) {throw new IndexOutOfBoundsException("Frame index is out of bounds");}
-
-            byte[] cb = ((Write)activeHistory.getEdit(i)).getContents();
+            cb = ((Write)activeHistory.getEdit(i)).getContents();
 
             for (int j = 0;j<cb.length;j++) {
               if (editFrameIndex+j >= pb.length) {break;} //upper bound guarding
@@ -232,14 +235,41 @@ final public class EditorEngine {
               pb[((int)editFrameIndex+j)] = cb[j];
             }
 
-        // TODO Implement sequence extension logic for cases wherein EOF < offset. extend sequence by offset-EOF+contents.length+1, then write. which, this kinda fucking sucks. Will have to revisit reversePassDelta calcs.
+        // Extending writes AND inserts are now handled by passing the forward pass a buffer that is correctly sized for EOF straddling frames. The buffer returned is the size of the generated preview.
 
         break;
       case EditType.INSERT:
-        // TODO Actually implement insert
+
+        if (forwardPassDelta+activeHistory.getEdit(i).getOffset()+1 >= previewSeek+previewBufferSize
+            ||
+            (activeHistory.getEdit(i)).getUpperBound()+forwardPassDelta < previewSeek) {break;} //Early exit for irrelevancy
+
+        int preserveSpace =(int) Math.max(0,activeHistory.getEdit(i).getOffset()-(previewSeek)); // amount of indices before insert region begins in frame.
+        int shiftedSpace = Math.min(previewBufferSize,(int) Math.max(0,previewSeek+(previewBufferSize)-activeHistory.getEdit(i).getUpperBound())); // amount of indices present after the insert region in frame.)
+
+        for (int k = 0;k<shiftedSpace;k++) {
+
+          pb[pb.length-1-k] = pb[preserveSpace+shiftedSpace-k-1];
+
+        }
+
+            if (((Insert)activeHistory.getEdit(i)).getContents() == null) {
+            cb = new byte[(int) ((Insert) activeHistory.getEdit(i)).getSize()];
+            Arrays.fill(cb, (byte) ((Insert)activeHistory.getEdit(i)).getFill());
+            }
+            else
+            {
+            cb = ((Insert)activeHistory.getEdit(i)).getContents();}
+
+            for (int j = 0;j<cb.length;j++) {
+              if (editFrameIndex+j >= pb.length) {break;} //upper bound guarding
+              if (editFrameIndex+j < 0) {continue;}
+              pb[((int)editFrameIndex+j)] = cb[j];
+            }
+
         break;
-      case EditType
-          .DELETE: // OOPS! Delete will involve recursively calling
+      case EditType.DELETE:
+                   // OOPS! Delete will involve recursively calling
                    // generatePreview. this presents a bit of a new problem
                    // though, hexLoad is relying on the fileBuffer owned by the
                    // engine. architecturally it's beginning to make a lot more

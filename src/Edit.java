@@ -85,6 +85,8 @@ final class Insert extends Edit {
     return super.getOffset()+this.size;
   }
 
+  public byte[] getContents() { return this.contents.clone(); }
+
   public byte getFill() { return this.fillInit; }
 }
 
