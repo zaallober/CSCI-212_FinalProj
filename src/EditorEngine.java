@@ -247,7 +247,7 @@ final public class EditorEngine {
 
         long insSize = ((Insert) activeHistory.getEdit(i)).getSize();
         int insIdx  = (int) editFrameIndex;
-        int sz      = (int) insSize;
+        int sz      = (int) insSize; // convert to int alias
 
         // shift the tail right by sz, in reverse so sources aren't overwritten
         for (int x = pb.length - 1; x >= insIdx + sz; x--) {
@@ -266,6 +266,8 @@ final public class EditorEngine {
         for (int j = 0; j < sz && j < insBytes.length; j++) {
           pb[insIdx + j] = insBytes[j];
         }
+
+        if (insEdit.getOffset() + 1 < previewSeek+forwardPassDelta) { forwardPassDelta += insEdit.getSize();}
 
         break;
       case EditType.DELETE:
