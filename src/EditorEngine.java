@@ -288,5 +288,7 @@ final public class EditorEngine {
     return pb;
   }
 
-  // public byte[] generatePreview() {} //TODO implement this puppy
+  public byte[] generatePreview(long previewSeek) {
+      return OpInterpreter(previewSeek, history.getHead(), previewBufferSize);
+    }
 }
