@@ -285,19 +285,27 @@ final public class EditorEngine {
   }
 
   public byte[] generatePreview(final long previewSeek) {
-      return OpInterpreter(previewSeek, history.getHead(), previewBufferSize);
+      byte[] OpInterpreted = OpInterpreter(previewSeek, history.getHead(), previewBufferSize);
+
+      byte[] outBuffer = new byte[(int) Math.min(previewBufferSize, getPreviewFileSize()-previewSeek)];
+
+      System.arraycopy(OpInterpreted, 0, outBuffer, 0, outBuffer.length);
+      return outBuffer;
     }
 }
 
   public void main(final String[] args) {
-    final EditorEngine e = new EditorEngine(8);
+    final EditorEngine e = new EditorEngine(128);
 
     e.hexLoad(args[0]);
 
 
     e.history.appendEdit(new Write(2,new byte[] {0x02,0x03}));
-    e.history.appendEdit(new Insert(1,4,(byte) 0x10));
+    e.history.appendEdit(new Insert(1,62,(byte) 0x10));
+    e.history.appendEdit(new Delete(15,32));
 
-    System.out.println(e.generatePreview(Integer.parseInt(args[1])));
+    byte[] outBuffer = e.generatePreview(Integer.parseInt(args[1]));
+
+    System.out.println(Arrays.toString(outBuffer));
 
   }
