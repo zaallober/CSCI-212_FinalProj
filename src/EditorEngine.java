@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 final public class EditorEngine {
 
-  private EditHistory history;
+  private final EditHistory history;
 
   private String filePath;
 
@@ -12,7 +12,7 @@ final public class EditorEngine {
   // to OpInterpreter() entirely.
   private int previewBufferSize;
 
-  private long previewSeek;
+  private final long previewSeek;
 
   private byte defaultFill = (byte) 0;
 
@@ -27,18 +27,18 @@ final public class EditorEngine {
       if (this.filePath == null) {return false;}
       try (RandomAccessFile file = new RandomAccessFile(this.filePath,"r")) {
           return true;
-      } catch (IOException e) {
+      } catch (final IOException e) {
       e.printStackTrace();
       return false;
       }
     }
 
-  public void hexLoad(String filePath) {
+  public void hexLoad(final String filePath) {
     this.filePath = filePath;
     return;
   }
 
-  private byte[] hexLoad(int bufferSize, String filePath, long seek) {
+  private byte[] hexLoad(final int bufferSize, final String filePath, final long seek) {
 
     byte[] fb = {};
 
@@ -46,7 +46,7 @@ final public class EditorEngine {
 
       file.seek(seek);
 
-      int available = (int)Math.min(
+      final int available = (int)Math.min(
           bufferSize,
           file.length() - seek); // handles EOF better than initial impl.
 
@@ -56,16 +56,16 @@ final public class EditorEngine {
       file.readFully(fb); // populates it as much as it can.
       // file.close(); //handled automaticall on scope escape
 
-    } catch (IOException e) {
+    } catch (final IOException e) {
       e.printStackTrace();
     }
     return fb; // return handle to new file buffer
   }
 
-  public void readBuffer(int len, byte[] fb) {
+  public void readBuffer(int len, final byte[] fb) {
     len = Math.min(len,fb.length); //guard against out of bounds indexing
     for (int i = 0; i < len; i++) {
-      byte b = fb[i];
+      final byte b = fb[i];
       System.out.printf("%02X ", b & 0xFF);
     }
     System.out.println();
@@ -80,52 +80,52 @@ final public class EditorEngine {
 
     return file.length();
 
-  } catch (IOException e) {
+  } catch (final IOException e) {
     e.printStackTrace();
   }
   return 0;
   }
 
-  public void setFill(byte fill) {
+  public void setFill(final byte fill) {
     this.defaultFill = fill;
   }
 
-  public void hexWrite(long offset, byte[] contents) {
+  public void hexWrite(final long offset, final byte[] contents) {
     this.history.appendEdit(new Write(offset, contents));
   }
 
-  public void hexInsert(long offset, byte[] contents) {
+  public void hexInsert(final long offset, final byte[] contents) {
     this.history.appendEdit(new Insert(offset, contents)); //insert substring support
   }
 
-  public void hexInsert(long offset, long size) {
+  public void hexInsert(final long offset, final long size) {
     this.history.appendEdit(new Insert(offset,size,this.defaultFill));
   }
 
-  public void hexInsert(long offset, long size, byte fill) {
+  public void hexInsert(final long offset, final long size, final byte fill) {
     this.history.appendEdit(new Insert(offset, size, fill));
   }
 
-  public void hexDelete(long offset, long size) {
+  public void hexDelete(final long offset, final long size) {
     this.history.appendEdit(new Delete(offset, size));
   }
 
   public void hexUndo() {this.history.undo();}
   public void hexRedo() {this.history.redo();}
 
-  private byte[] OpInterpreter(long previewSeek) {
+  private byte[] OpInterpreter(final long previewSeek) {
     return OpInterpreter(previewSeek, this.history.getHead(),
                          this.previewBufferSize);
   }
 
 
-    private long calcDiff(Edit edit, long previewFileSize) {
-          long offset = edit.getOffset();
-          long originalSize = previewFileSize;
+    private long calcDiff(final Edit edit, long previewFileSize) {
+          final long offset = edit.getOffset();
+          final long originalSize = previewFileSize;
       switch (edit.getType()) {
         case EditType.WRITE:
           if (offset > previewFileSize) previewFileSize = offset;
-          long writeEnd = ((Write)edit).getUpperBound() + 1;
+          final long writeEnd = ((Write)edit).getUpperBound() + 1;
           if (writeEnd > previewFileSize) previewFileSize = writeEnd;
           break;
         case EditType.INSERT:
@@ -145,7 +145,7 @@ final public class EditorEngine {
     return getPreviewFileSize(getFileSize(),this.history.getHead(),this.history);
   }
 
-  private long getPreviewFileSize(long rawFileLength,int historyHead, EditHistory activeHistory) {
+  private long getPreviewFileSize(final long rawFileLength,final int historyHead, final EditHistory activeHistory) {
     long previewFileSize = rawFileLength;
 
     for (int i=0; i<=historyHead;i++) {
@@ -154,8 +154,10 @@ final public class EditorEngine {
     return previewFileSize;
   }
 
+
   private byte[] OpInterpreter(final long previewSeek, int historyHead,
                                int previewBufferSize) {
+
 
     final int W = Math.max(0, previewBufferSize);
     if (W == 0) {
@@ -167,6 +169,7 @@ final public class EditorEngine {
 
     // Full original (pre-edit) content: O[k].
     final byte[] O = loadOriginalFile();
+
 
     final Edit[] edits = new Edit[Math.max(0, historyHead + 1)];
     for (int i = 0; i < historyHead + 1; i++) {
@@ -184,6 +187,7 @@ final public class EditorEngine {
         }
       }
     }
+
 
     // Result is zero-filled; any frame left untouched is the EOF fill (0).
     final byte[] res = new byte[W];
@@ -280,7 +284,20 @@ final public class EditorEngine {
     return d;
   }
 
-  public byte[] generatePreview(long previewSeek) {
+  public byte[] generatePreview(final long previewSeek) {
       return OpInterpreter(previewSeek, history.getHead(), previewBufferSize);
     }
 }
+
+  public void main(final String[] args) {
+    final EditorEngine e = new EditorEngine(8);
+
+    e.hexLoad(args[0]);
+
+
+    e.history.appendEdit(new Write(2,new byte[] {0x02,0x03}));
+    e.history.appendEdit(new Insert(1,4,(byte) 0x10));
+
+    System.out.println(e.generatePreview(Integer.parseInt(args[1])));
+
+  }
