@@ -38,7 +38,7 @@ final public class PieceTable{
         long pieceSize = pieces.get(i).getSize();
 
         if (rollingSize <= offset &&
-            offset < rollingSize + pieceSize) {
+            offset - rollingSize < pieceSize) {
             return i;
         }
         rollingSize += pieceSize;
@@ -130,7 +130,7 @@ final public class PieceTable{
     long end = Math.addExact(offset,size); // Math.addExact catches integer overflows. java would otherwise just return a sign flipped value.
     long currentLength = getLength();
 
-    if (offset > currentLength) {
+    if (end > currentLength) {
         pieces.add(new Piece.FillPiece(end-currentLength,(byte)0x00));
     }
 
@@ -201,7 +201,7 @@ final public class PieceTable{
     System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
 
 
-    pTable.replaceRange(10,5,new Piece.FillPiece(6,(byte)0xFE));
+    pTable.replaceRange(30,5,new Piece.FillPiece(6,(byte)0xFE));
     System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
 
     return;
