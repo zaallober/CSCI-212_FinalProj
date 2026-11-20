@@ -29,6 +29,8 @@ final public class PieceTable{
 
     public PieceTable() {}
 
+    public List<Piece> getPieces() {return pieces;}
+
     public int findPieceIndex(
     long offset) { // find the index of the piece containing this offset.
     long rollingSize = 0;
@@ -118,11 +120,12 @@ final public class PieceTable{
 
     //split at both offset and offset+size, remove both inner members, then add the piece
 
-    Objects.requireNonNull(piece, "Replacement piece cannot be null");
+
 
     if (offset < 0 || size < 0) {throw new IllegalArgumentException("Invalid range");}
+    if (size == 0) {Objects.requireNonNull(piece, "Cannot insert a null piece");}
 
-    if (size == 0) {pieces.add(findInsertionIndex(offset),piece); return;}
+
 
     long end = Math.addExact(offset,size); // Math.addExact catches integer overflows. java would otherwise just return a sign flipped value.
     long currentLength = getLength();
@@ -149,6 +152,8 @@ final public class PieceTable{
         }
     }
 
+    if (size == 0) {pieces.add(firstIndex,piece); return;} // early exit for size zero inserts
+
     int secondIndex = findPieceIndex(end);
     int secondLocal = findLocalOffset(end);
     //second split
@@ -158,12 +163,48 @@ final public class PieceTable{
 
     pieces.subList(firstIndex,endIndex).clear();
 
-    pieces.add(firstIndex,piece);
 
+
+    if (piece != null){
+    pieces.add(firstIndex,piece);
+    }
+    return;
     }
 
 
 
     PieceTable compile(EditHistory history) {return null;}
+
+    public static void main(String[] args) {
+
+    PieceTable pTable = new PieceTable();
+
+    pTable.insertPiece(0, new Piece.FillPiece(16,(byte)0x00));
+    System.out.println(pTable.getPieces().toString());
+
+    pTable.splitPiece(0,8);
+    System.out.println(pTable.getPieces().toString());
+
+    pTable.insertPiece(1, new Piece.FillPiece(16,(byte)0x10));
+    System.out.println(pTable.getPieces().toString());
+
+    pTable.replaceRange(4,8,new Piece.FillPiece(8,(byte)0x20));
+    System.out.println(pTable.getPieces().toString());
+
+    pTable.replaceRange(0,26,null);
+    System.out.println(pTable.getPieces().toString());
+
+    pTable.replaceRange(3,0,new Piece.FillPiece(10,(byte)0x40));
+    System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
+
+    pTable.replaceRange(32,0,new Piece.FillPiece(32,(byte)0x50));
+    System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
+
+    pTable.replaceRange(0,64,null);
+    System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
+
+
+    return;
+    }
 
 }

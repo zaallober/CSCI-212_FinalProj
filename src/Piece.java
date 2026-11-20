@@ -66,7 +66,13 @@ public static final class FillPiece extends Piece {
         return new FillPiece(size-localOffset,fill);
     }
 
+    public String toString() {
+    return (super.toString()+" len:"+this.size+" fill: '"+String.format("0x%02X", this.fill)+"'");
     }
+
+    }
+
+
 
 public static final class InsertPiece extends Piece {
 
