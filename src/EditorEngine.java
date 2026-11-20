@@ -154,138 +154,130 @@ final public class EditorEngine {
     return previewFileSize;
   }
 
-  private long calcReversePassDelta(long previewSeek, int historyHead, EditHistory activeHistory) {
-    long reversePassDelta = 0;
-
-    long[] diff = new long[historyHead+1];
-
-    for (int i = historyHead; i >= 0; i--) {
-      diff[i] = getPreviewFileSize(getFileSize(),i-1,activeHistory) - getPreviewFileSize(getFileSize(),i,activeHistory);
-    }
-
-    for (int i = historyHead; i >= 0; i--) {
-      Edit edit = activeHistory.getEdit(i);
-      long effectiveSeek = previewSeek+reversePassDelta;
-
-      if (edit.getUpperBound() <= effectiveSeek) {reversePassDelta += diff[i]; continue;}
-      // early exit for preceding & relevant
-      if (edit.getOffset() <= effectiveSeek && effectiveSeek <= edit.getUpperBound()) {
-
-        if (edit.getType() == EditType.DELETE) {reversePassDelta += diff[i]; continue;} //short circuit for straddled deletes
-
-
-        reversePassDelta += diff[i] - (effectiveSeek - edit.getOffset()+1);
-
-        continue;
-      }
-    }
-    return reversePassDelta; // sum of rpd and originalFileSize ≥ 0, potentially greater than originalFileSize
-  }
-
-  private byte[] OpInterpreter(long previewSeek, int historyHead,
+  private byte[] OpInterpreter(final long previewSeek, int historyHead,
                                int previewBufferSize) {
 
+    final int W = Math.max(0, previewBufferSize);
+    if (W == 0) {
+      return new byte[0];
+    }
 
+    final long S = previewSeek;
+    final long logicalLen = getPreviewFileSize();
 
-    byte[] pb;
+    // Full original (pre-edit) content: O[k].
+    final byte[] O = loadOriginalFile();
 
-    EditHistory activeHistory = this.history;
-    long originalFileSeek;
-    long reversePassDelta = 0;
-    long forwardPassDelta = 0;
+    final Edit[] edits = new Edit[Math.max(0, historyHead + 1)];
+    for (int i = 0; i < historyHead + 1; i++) {
+      edits[i] = this.history.getEdit(i);
+    }
 
-
-    reversePassDelta = calcReversePassDelta(previewSeek,historyHead,activeHistory);
-
-    originalFileSeek = Math.max(0,previewSeek + reversePassDelta);
-    byte[] fb = this.hexLoad(previewBufferSize, this.filePath,
-                      originalFileSeek); // showtime motherfucker :: receives
-                                         // newly created byte[] from callee.
-
-    if (fb.length < previewBufferSize) { //catch EOF straddling reads
-      int targetSize = (int) Math.min((long) previewBufferSize,getPreviewFileSize()-previewSeek);
-      pb = Arrays.copyOf(fb, targetSize);
-    } else {pb = fb;}
-
-    for (int i = 0; i <= historyHead; i++) { //now correctly skips both passes as head represents index instead of count now.
-
-      // if op offset > filebuffer upper bound || op upper bound < previewSeek, edit is
-      // irrelevant
-      // conversely,
-      // if previewSeek <= op offset && op offset <= filebuffer upper bound, edit is
-      // relevant
-      byte[] cb;
-      long upperBound = activeHistory.getEdit(i).getUpperBound();
-
-      long editFrameIndex = activeHistory.getEdit(i).getOffset()-originalFileSeek+forwardPassDelta; //we love pointer arithmetic
-
-      if (editFrameIndex>Integer.MAX_VALUE) {throw new IndexOutOfBoundsException("Frame index is out of bounds");}
-
-      switch (activeHistory.getEdit(i).getType()) {
-      case EditType.WRITE:
-
-        if (forwardPassDelta+activeHistory.getEdit(i).getOffset() > previewSeek+previewBufferSize
-            ||
-            ((Write)activeHistory.getEdit(i)).getUpperBound()+forwardPassDelta< previewSeek) {break;} //Early exit for irrelevancy
-
-            cb = ((Write)activeHistory.getEdit(i)).getContents();
-
-            for (int j = 0;j<cb.length;j++) {
-              if (editFrameIndex+j >= pb.length) {break;} //upper bound guarding
-              if (editFrameIndex+j < 0) {continue;}
-              pb[((int)editFrameIndex+j)] = cb[j];
-            }
-
-        // Extending writes AND inserts are now handled by passing the forward pass a buffer that is correctly sized for EOF straddling frames. The buffer returned is the size of the generated preview.
-
-        break;
-      case EditType.INSERT:
-
-        if (forwardPassDelta+activeHistory.getEdit(i).getOffset()+1 >= previewSeek+previewBufferSize
-            ||
-            (activeHistory.getEdit(i)).getUpperBound()+forwardPassDelta < previewSeek) {break;} //Early exit for irrelevancy
-
-        long insSize = ((Insert) activeHistory.getEdit(i)).getSize();
-        int insIdx  = (int) editFrameIndex;
-        int sz      = (int) insSize; // convert to int alias
-
-        // shift the tail right by sz, in reverse so sources aren't overwritten
-        for (int x = pb.length - 1; x >= insIdx + sz; x--) {
-          pb[x] = pb[x - sz];
+    // Mark original bytes that get deleted so they are not re-placed.
+    final boolean[] deleted = new boolean[O.length];
+    for (final Edit e : edits) {
+      if (e.getType() == EditType.DELETE) {
+        final int o = (int) e.getOffset();
+        final int s = (int) ((Delete) e).getSize();
+        for (int i = o; i < Math.min(o + s, O.length); i++) {
+          deleted[i] = true;
         }
-
-        Insert insEdit = (Insert) activeHistory.getEdit(i);
-        byte[] insBytes;
-        if (insEdit.getContents() != null) {
-          insBytes = insEdit.getContents();
-        } else {
-          insBytes = new byte[sz];
-          Arrays.fill(insBytes, insEdit.getFill());
-        }
-
-        for (int j = 0; j < sz && j < insBytes.length; j++) {
-          pb[insIdx + j] = insBytes[j];
-        }
-
-        if (insEdit.getOffset() + 1 < previewSeek+forwardPassDelta) { forwardPassDelta += insEdit.getSize();}
-
-        break;
-      case EditType.DELETE:
-                   // OOPS! Delete will involve recursively calling
-                   // generatePreview. this presents a bit of a new problem
-                   // though, hexLoad is relying on the fileBuffer owned by the
-                   // engine. architecturally it's beginning to make a lot more
-                   // sense to allocate that file buffer to the function scope
-                   // of generatePreview. Changes to make this happen: hexLoad
-                   // will now return byte[] copy by clone. a new overload, void
-                   // hexLoad(String f) is born to set the filePath in the
-                   // engine state.
-        // TODO Actually implement Delete
-        break;
       }
-    } // I can only hope the JVM finds a way to vectorize this.
+    }
 
-    return pb;
+    // Result is zero-filled; any frame left untouched is the EOF fill (0).
+    final byte[] res = new byte[W];
+
+    // 1) Place each surviving original byte at its translated frame:
+    //    frame = (k + deltaUpTo(k)) - S
+    for (int k = 0; k < O.length; k++) {
+      if (deleted[k]) continue;
+      final long L = k + deltaUpTo(edits, k);
+      if (L >= S && L < S + W) {
+        res[(int) (L - S)] = O[k];
+      }
+    }
+
+    // 2) Overlay each edit at its translated logical range.
+    //    frameStart = (offset + deltaBefore(offset)) - S
+    for (final Edit e : edits) {
+      final long ls = e.getOffset() + deltaBefore(edits, e.getOffset());
+      final long fStart = ls - S;
+      switch (e.getType()) {
+        case EditType.INSERT: {
+          final Insert ins = (Insert) e;
+          final int len = (int) ins.getSize();
+          final byte[] contents = ins.getContents();
+          for (int d = 0; d < len; d++) {
+            final long f = fStart + d;
+            if (f < 0 || f >= W) continue;
+            final byte b = (contents != null && d < contents.length) ? contents[d] : ins.getFill();
+            res[(int) f] = b;
+          }
+          break;
+        }
+        case EditType.WRITE: {
+          final byte[] c = ((Write) e).getContents();
+          for (int d = 0; d < c.length; d++) {
+            final long lp = ls + d; // logical position
+            if (lp >= logicalLen) break; // clip writes to the file's logical end
+            final long f = fStart + d;
+            if (f < 0 || f >= W) continue;
+            res[(int) f] = c[d];
+          }
+          break;
+        }
+        case EditType.DELETE:
+          // Nothing to overlay; deletion is already reflected by `deleted[]`
+          // and by the negative delta in deltaUpTo / deltaBefore.
+          break;
+        default:
+          break;
+      }
+    }
+
+    return res;
+  }
+
+  // Full original (pre-edit) file content, O[k].
+  private byte[] loadOriginalFile() {
+    final int len = (int) getFileSize();
+    final byte[] buf = new byte[Math.max(0, len)];
+    try (RandomAccessFile raf = new RandomAccessFile(this.filePath, "r")) {
+      raf.seek(0);
+      if (len > 0) {
+        raf.readFully(buf);
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return buf;
+  }
+
+  // Forward twin of the reverse-pass delta: net (insert - delete) size of
+  // edits with offset <= p.
+  private long deltaUpTo(final Edit[] edits, final long p) {
+    long d = 0;
+    for (final Edit e : edits) {
+      if (e.getOffset() <= p) {
+        if (e.getType() == EditType.INSERT) d += ((Insert) e).getSize();
+        else if (e.getType() == EditType.DELETE) d -= ((Delete) e).getSize();
+      }
+    }
+    return d;
+  }
+
+  // Forward twin of the reverse-pass delta: net (insert - delete) size of
+  // edits with offset < p (strictly before).
+  private long deltaBefore(final Edit[] edits, final long p) {
+    long d = 0;
+    for (final Edit e : edits) {
+      if (e.getOffset() < p) {
+        if (e.getType() == EditType.INSERT) d += ((Insert) e).getSize();
+        else if (e.getType() == EditType.DELETE) d -= ((Delete) e).getSize();
+      }
+    }
+    return d;
   }
 
   public byte[] generatePreview(long previewSeek) {
