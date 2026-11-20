@@ -1,21 +1,138 @@
+import java.util.Objects;
 //
 //
 //
 //
 
-public class Piece {
+abstract public class Piece { // just contains basic information like positioning, backed range
 
-final Edit edit;
+final long size;
 
-public Piece(Edit edit) {
+protected Piece(long size) {
 
-this.edit = edit;
+if (size < 0) {throw new IllegalArgumentException("size cannot be negative");}
+
+this.size = size;
 
 }
 
+public long getSize() {return this.size;}
+
+public abstract Piece splitLeft(long localOffset);
+public abstract Piece splitRight(long localOffset);
 
 
+public static final class OriginalPiece extends Piece {
 
+    final private long backedIndex;
+    final private String backingPath;
+    public OriginalPiece(long backedIndex, long backedSize, String backingPath) { // backedIndices must have a length of 2
+        super(backedSize);
+        if (backedIndex < 0) {throw new IllegalArgumentException("backedIndex cannot be negative");}
+        this.backedIndex = backedIndex;
+        this.backingPath = Objects.requireNonNull(
+            backingPath, "backingPath cannot be null"
+        );
+    }
 
+    public long getBackedIndex() {return this.backedIndex;}
+    public String getBackingPath() {return this.backingPath;}
+
+    public OriginalPiece splitLeft(long localOffset) {
+        return new OriginalPiece(backedIndex,localOffset,backingPath);
+    }
+
+    public OriginalPiece splitRight(long localOffset) {
+        return new OriginalPiece(backedIndex+localOffset,size-localOffset,backingPath);
+    }
+
+}
+
+public static final class FillPiece extends Piece {
+
+    byte fill;
+    public FillPiece(long size, byte fill) {
+    super(size);
+    this.fill = fill;
+    }
+
+    public byte getFill() {return this.fill;}
+
+    public FillPiece splitLeft(long localOffset) {
+        return new FillPiece(localOffset,fill);
+    }
+
+    public FillPiece splitRight(long localOffset) {
+        return new FillPiece(size-localOffset,fill);
+    }
+
+    }
+
+public static final class InsertPiece extends Piece {
+
+    private final long backedIndex;
+    private final Insert insert;
+
+    public InsertPiece(long backedIndex, long backedSize, Insert insert) {
+
+    super(backedSize);
+
+    this.insert = Objects.requireNonNull(
+            insert, "insert cannot be null"
+        );
+
+    if (backedIndex < 0 ||
+    backedIndex > insert.getSize() ||
+    backedSize > insert.getSize() - backedIndex) {
+        throw new IllegalArgumentException("Invalid Insert backing range");
+    }
+    this.backedIndex = backedIndex;
+
+    }
+
+    public long getBackedIndex() {return this.backedIndex;}
+    public Insert getInsert() {return this.insert;}
+
+    public InsertPiece splitLeft(long localOffset) {
+        return new InsertPiece(backedIndex,localOffset,insert);
+    }
+
+    public InsertPiece splitRight(long localOffset) {
+        return new InsertPiece(backedIndex+localOffset,size-localOffset,insert);
+    }
+}
+
+public static final class WritePiece extends Piece {
+
+    private final long backedIndex;
+    private final Write write;
+
+    public WritePiece(long backedIndex, long backedSize, Write write) {
+    super(backedSize);
+
+    this.write = Objects.requireNonNull(
+            write, "write cannot be null"
+        );
+
+    if (backedIndex < 0 ||
+    backedIndex > write.getSize() ||
+    backedSize > write.getSize() - backedIndex) {
+        throw new IllegalArgumentException("Invalid Write backing range");
+    }
+    this.backedIndex = backedIndex;
+    }
+
+    public long getBackedIndex() {return this.backedIndex;}
+    public Write getWrite() {return this.write;}
+
+    public WritePiece splitLeft(long localOffset) {
+        return new WritePiece(backedIndex,localOffset,write);
+    }
+
+    public WritePiece splitRight(long localOffset) {
+        return new WritePiece(backedIndex+localOffset,size-localOffset,write);
+    }
+
+}
 
 }

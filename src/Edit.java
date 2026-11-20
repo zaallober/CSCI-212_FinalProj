@@ -46,6 +46,7 @@ final class Write extends Edit {
   }
 
   public byte[] getContents() { return this.contents.clone(); }
+  public long getSize() {return this.contents.length;}
   public long getUpperBound() { return (this.contents.length -1 + super.getOffset());} // sub one to account for the fact that a write begins at offset, ie, the calc for upper bound is inclusive of the offset. 10 byte file, a write at offset 10 extends past eof after offset 9 of the original file, consequently the upper bound of a write past EOF is its offset + its size minus one.
 }
 
