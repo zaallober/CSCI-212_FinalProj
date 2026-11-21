@@ -10,6 +10,8 @@ abstract public class Edit {
     this.offset = offset;
   }
 
+  public abstract long getSize();
+
   public EditType getType() { return this.type; }
 
   public long getOffset() { return this.offset; }
@@ -28,6 +30,8 @@ abstract public class Edit {
       return offset;
 
     }
+
+
 
   }
 

@@ -46,6 +46,8 @@ final public class PieceTable{
     return -1;
     }
 
+    public Piece getPiece(int pieceIndex) {return pieces.get(pieceIndex);}
+
     public Piece findPiece(long offset) {
     int index = findPieceIndex(offset);
 
@@ -68,7 +70,7 @@ final public class PieceTable{
     return Math.toIntExact(offset-sizeUpTo);
     }
 
-    private int findInsertionIndex(long offset) { // handle EOF boundary conditions
+    public int findInsertionIndex(long offset) { // handle EOF boundary conditions
 
     if (offset < 0) {return -1;}
 
@@ -170,10 +172,6 @@ final public class PieceTable{
     }
     return;
     }
-
-
-
-    PieceTable compile(EditHistory history) {return null;}
 
     public static void main(String[] args) {
 

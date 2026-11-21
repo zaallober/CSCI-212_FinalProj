@@ -38,6 +38,8 @@ public static final class OriginalPiece extends Piece {
     public long getBackedIndex() {return this.backedIndex;}
     public String getBackingPath() {return this.backingPath;}
 
+    public String toString() {return super.toString() + " len:"+this.size+" backedIndex: "+backedIndex;}
+
     public OriginalPiece splitLeft(long localOffset) {
         return new OriginalPiece(backedIndex,localOffset,backingPath);
     }
@@ -96,6 +98,8 @@ public static final class InsertPiece extends Piece {
 
     }
 
+    public String toString() {return super.toString() + " len:"+this.size+" backedIndex: "+backedIndex;}
+
     public long getBackedIndex() {return this.backedIndex;}
     public Insert getInsert() {return this.insert;}
 
@@ -130,6 +134,8 @@ public static final class WritePiece extends Piece {
 
     public long getBackedIndex() {return this.backedIndex;}
     public Write getWrite() {return this.write;}
+
+    public String toString() {return super.toString() + " len:"+this.size+" backedIndex: "+backedIndex;}
 
     public WritePiece splitLeft(long localOffset) {
         return new WritePiece(backedIndex,localOffset,write);

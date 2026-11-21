@@ -1,5 +1,7 @@
+import java.awt.desktop.OpenURIEvent;
 import java.io.IOException;
 import java.io.RandomAccessFile; // for file buffer
+import java.util.ArrayList;
 import java.util.Arrays;
 
 final public class EditorEngine {
@@ -113,7 +115,7 @@ final public class EditorEngine {
   public void hexUndo() {this.history.undo();}
   public void hexRedo() {this.history.redo();}
 
-  private PieceTable OpInterpreter(final long previewSeek) {
+  public PieceTable OpInterpreter(final long previewSeek) {
     return OpInterpreter(previewSeek, this.history.getHead(),this.previewBufferSize);
   }
 
@@ -122,18 +124,95 @@ final public class EditorEngine {
   }
 
 
-  private PieceTable OpInterpreter(final long previewSeek, int historyHead, int previewBufferSize) {
+  public PieceTable OpInterpreter(final long previewSeek, int historyHead, int previewBufferSize) {
+    PieceTable pTable = new PieceTable();
 
+    //initial fill
+    long backedFileSize=0;
 
-    return null;
+    try (RandomAccessFile file = new RandomAccessFile(this.filePath, "r")) {
+      backedFileSize = file.length();
+    } catch (final IOException e) {
+      e.printStackTrace();
+    }
+
+    pTable.replaceRange(0,0,new Piece.OriginalPiece(0,backedFileSize,this.filePath)); // insert original backed material // if no file is found, nothing is inserted.
+
+    for (int i = 0;i<=historyHead;i++) { // mulching time
+
+      Edit edit = this.history.getEdit(i);
+      long offset = edit.getOffset();
+      long size = edit.getSize();
+
+      //System.out.println("i: "+i+" offset: "+offset+" size: "+size);
+
+      switch (edit.getType()) {
+
+      case EditType.DELETE:
+        pTable.replaceRange(offset,size,null);
+        break;
+      case EditType.INSERT:
+        pTable.replaceRange(offset,0,new Piece.InsertPiece(0,size,(Insert) edit));
+        break;
+      case EditType.WRITE:
+        pTable.replaceRange(offset,size,new Piece.WritePiece(0,size,(Write) edit));
+        break;
+
+      }
+    }
+
+    return pTable;
   }
 
-  public byte[] generatePreview(final long previewSeek) {
+  private void materializePreview() {return;}
 
-      return null;
+  public List<Piece> generatePreviewWindow(final long previewSeek) {
+
+      // we have a compiled piece PieceTable
+      // we have a file offset, previewSeek.
+
+      List<Piece> window = new ArrayList<>();
+
+      PieceTable pTable = this.OpInterpreter(0);
+
+      long length = pTable.getLength();
+
+      if (previewSeek < 0 || previewSeek >= length || this.previewBufferSize <= 0) {return window;}
+
+      long endIndex = Math.min(length,Math.addExact(previewSeek,this.previewBufferSize)) - 1;
+
+      if (endIndex < previewSeek) {return window;}
+
+      int firstPieceIndex = pTable.findPieceIndex(previewSeek);
+      int secondPieceIndex = pTable.findPieceIndex(endIndex);
+
+      // we can create a sublist of the pieces that are within the buffer
+
+      System.out.println("Window indices: ["+previewSeek+","+endIndex+"]");
+      System.out.println("Piece indices: ["+firstPieceIndex+","+secondPieceIndex+"]");
+
+      if (firstPieceIndex < 0 || secondPieceIndex < 0) {return window;}
+
+      window = pTable.getPieces().subList(firstPieceIndex,secondPieceIndex+1);
+
+      return window;
     }
 }
 
   public void main(final String[] args) {
+
+  EditorEngine e = new EditorEngine(8);
+
+  e.hexLoad(args[0]);
+
+  e.hexInsert(6,24,(byte)0xFF);
+  e.hexWrite(4,new byte[] {0x01,0x02,0x03,0x04});
+  e.hexDelete(18,12);
+
+  PieceTable pTable = e.OpInterpreter(0);
+  System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
+
+  System.out.println(e.generatePreviewWindow(Integer.parseInt(args[1])).toString());
+
   return;
   }
