@@ -21,6 +21,10 @@ public long getSize() {return this.size;}
 public abstract Piece splitLeft(long localOffset);
 public abstract Piece splitRight(long localOffset);
 
+public abstract byte[] streamBytes(); //
+public abstract byte[] streamBytes(long localIndex,long size);
+//public abstract int streamBytes(long localIndex,long size, byte[] dest, int destinationOffset) // future optimized signature
+
 
 public static final class OriginalPiece extends Piece {
 
@@ -46,6 +50,10 @@ public static final class OriginalPiece extends Piece {
 
     public OriginalPiece splitRight(long localOffset) {
         return new OriginalPiece(backedIndex+localOffset,size-localOffset,backingPath);
+    }
+
+    public byte[] streamBytes() {
+    byte[] cb = new byte[this.size];
     }
 
 }
