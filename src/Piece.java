@@ -24,6 +24,8 @@ public long getSize() {return this.size;}
 public abstract Piece splitLeft(long localOffset);
 public abstract Piece splitRight(long localOffset);
 
+public abstract long getBackedIndex();
+
 public abstract byte[] streamBytes();
 //public abstract byte[] streamBytes(long localIndex,long size);
 //public abstract int streamBytes(long localIndex,long size, byte[] dest, int destinationOffset) // future optimized signature
@@ -105,6 +107,8 @@ public static final class FillPiece extends Piece {
 
     return cb;
     }
+
+    public long getBackedIndex() {return 0;}
 
     }
 

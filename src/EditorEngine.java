@@ -166,45 +166,56 @@ final public class EditorEngine {
 
   private void materializePreview() {return;}
 
-  public List<Piece> generatePreview(final long previewSeek) {
+  public byte[] generatePreview(final long previewSeek) {
 
       // we have a compiled piece PieceTable
       // we have a file offset, previewSeek.
 
-      List<Piece> window = new ArrayList<>();
+      //List<Piece> window = new ArrayList<>();
 
       PieceTable pTable = this.OpInterpreter(0);
+      byte[] raw = new byte[(int) Math.min(this.previewBufferSize,pTable.getLength()-previewSeek)];
 
       long length = pTable.getLength();
 
-      if (previewSeek < 0 || previewSeek >= length || this.previewBufferSize <= 0) {return window;}
+      if (previewSeek < 0 || previewSeek >= length || this.previewBufferSize <= 0) {return raw;}
 
       long endIndex = Math.min(length,Math.addExact(previewSeek,this.previewBufferSize)) - 1;
 
-      if (endIndex < previewSeek) {return window;}
+      if (endIndex < previewSeek) {return raw;}
 
       int firstPieceIndex = pTable.findPieceIndex(previewSeek);
       int secondPieceIndex = pTable.findPieceIndex(endIndex);
 
       // we can create a sublist of the pieces that are within the buffer
 
-      System.out.println("Window indices: ["+previewSeek+","+endIndex+"]");
-      System.out.println("Piece indices: ["+firstPieceIndex+","+secondPieceIndex+"]");
+      //System.out.println("Window indices: ["+previewSeek+","+endIndex+"]");
+      //System.out.println("Piece indices: ["+firstPieceIndex+","+secondPieceIndex+"]");
 
-      if (firstPieceIndex < 0 || secondPieceIndex < 0) {return window;}
+      if (firstPieceIndex < 0 || secondPieceIndex < 0) {return raw;}
 
-      window = pTable.getPieces().subList(firstPieceIndex,secondPieceIndex+1);
+      //window = pTable.getPieces().subList(firstPieceIndex,secondPieceIndex+1);
 
-      System.out.println("Local Offset in First Piece: "+pTable.findLocalOffset(previewSeek));
-      System.out.println("Ending Offset in Last Piece: "+pTable.findLocalOffset(endIndex));
+      //System.out.println("Local Offset in First Piece: "+pTable.findLocalOffset(previewSeek));
+      //System.out.println("Ending Offset in Last Piece: "+pTable.findLocalOffset(endIndex));
+
+      int rollingOffset = 0;
 
 
-      byte[] raw = new byte[(int) Math.min(this.previewBufferSize,pTable.getLength()-previewSeek)];
       for (int i = firstPieceIndex; i <= secondPieceIndex; i++) {
       Piece p = pTable.getPiece(i);
-
+      byte[] source = p.streamBytes();
+      int size = (int) Math.max(1,Math.min(Integer.MAX_VALUE-8,p.getSize()));
+      int backedIndex = (int) p.getBackedIndex();
+      System.arraycopy(source,0,raw,rollingOffset,size);
+      rollingOffset += p.getSize();
       }
-      return window;
+
+
+
+
+
+      return raw.clone();
     }
 }
 
@@ -214,18 +225,32 @@ final public class EditorEngine {
 
   e.hexLoad(args[0]);
 
-  e.hexInsert(6,24,(byte)0xFF);
-  e.hexWrite(4,new byte[] {0x01,0x02,0x03,0x04});
-  e.hexDelete(18,12);
-  e.hexUndo();
-  e.hexUndo();
-  e.hexUndo();
-  e.hexDelete(11,1);
+  e.hexInsert(6, new byte[] {
+    0x48, 0x41, 0x43, 0x4B, 0x45, 0x52,
+    0x21, 0x21, 0x21
+});
+  e.hexWrite(5,new byte[] {0x64,0x64});
+  e.hexInsert(6, new byte[] {
+    0x00, 0x11, 0x22, 0x33,
+    0x44, 0x55, 0x66, 0x77,
+    (byte)0x88, (byte)0x99, (byte)0xAA, (byte)0xBB,
+    (byte)0xCC, (byte)0xDD, (byte)0xEE, (byte)0xFF
+});
+
+  e.hexDelete(4,21);
 
   PieceTable pTable = e.OpInterpreter(0);
   System.out.println(pTable.getPieces().toString()+" Final Length: "+pTable.getLength());
 
-  System.out.println(e.generatePreview(Integer.parseInt(args[1])).toString());
+  StringBuilder hex = new StringBuilder();
+  byte[] buffer = e.generatePreview(Integer.parseInt(args[1]));
+
+  for (int i = 0; i < buffer.length; i++) {
+      if (i > 0) hex.append(",");
+      hex.append(String.format("%02x", buffer[i] & 0xFF));
+  }
+
+  System.out.println(hex);
 
 
   return;
