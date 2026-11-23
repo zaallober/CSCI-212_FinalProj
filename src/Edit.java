@@ -1,3 +1,5 @@
+import java.util.Arrays;
+
 enum EditType { WRITE, INSERT, DELETE }
 
 abstract public class Edit {
@@ -72,7 +74,8 @@ final class Insert extends Edit {
     if (size <0) {throw new IllegalArgumentException("Size Cannot Be Negative!");}
     this.size = size;
     this.fillInit = fillInit;
-    this.contents = null;
+    this.contents = new byte[(int) Math.max(1,Math.min(this.size,Integer.MAX_VALUE-8))];
+    Arrays.fill(contents,fillInit);
   }
 
   public Insert(long offset, byte[] contents) {
@@ -90,7 +93,7 @@ final class Insert extends Edit {
     return super.getOffset()+this.size;
   }
 
-  public byte[] getContents() { return this.contents; }
+  public byte[] getContents() {return this.contents;}
 
   public byte getFill() { return this.fillInit; }
 }

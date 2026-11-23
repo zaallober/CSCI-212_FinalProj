@@ -1,3 +1,6 @@
+import java.io.RandomAccessFile;
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 //
 //
@@ -21,8 +24,8 @@ public long getSize() {return this.size;}
 public abstract Piece splitLeft(long localOffset);
 public abstract Piece splitRight(long localOffset);
 
-public abstract byte[] streamBytes(); //
-public abstract byte[] streamBytes(long localIndex,long size);
+public abstract byte[] streamBytes();
+//public abstract byte[] streamBytes(long localIndex,long size);
 //public abstract int streamBytes(long localIndex,long size, byte[] dest, int destinationOffset) // future optimized signature
 
 
@@ -53,7 +56,21 @@ public static final class OriginalPiece extends Piece {
     }
 
     public byte[] streamBytes() {
-    byte[] cb = new byte[this.size];
+
+    byte[] cb = null;
+
+    try (RandomAccessFile file = new RandomAccessFile(this.backingPath, "r")) {
+
+    cb = new byte[(int) Math.max(1,Math.min(this.size,Integer.MAX_VALUE-8))];
+
+    file.seek(this.backedIndex);
+
+    file.readFully(cb);
+
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    return cb;
     }
 
 }
@@ -78,6 +95,15 @@ public static final class FillPiece extends Piece {
 
     public String toString() {
     return (super.toString()+" len:"+this.size+" fill: '"+String.format("0x%02X", this.fill)+"'");
+    }
+
+    public byte[] streamBytes() {
+
+    byte[] cb = new byte[(int) Math.max(1,Math.min(Integer.MAX_VALUE-8,this.size))];
+
+    Arrays.fill(cb,this.fill);
+
+    return cb;
     }
 
     }
@@ -118,6 +144,8 @@ public static final class InsertPiece extends Piece {
     public InsertPiece splitRight(long localOffset) {
         return new InsertPiece(backedIndex+localOffset,size-localOffset,insert);
     }
+
+    public byte[] streamBytes() {return this.insert.getContents();}
 }
 
 public static final class WritePiece extends Piece {
@@ -152,6 +180,8 @@ public static final class WritePiece extends Piece {
     public WritePiece splitRight(long localOffset) {
         return new WritePiece(backedIndex+localOffset,size-localOffset,write);
     }
+
+    public byte[] streamBytes() {return this.write.getContents();}
 
 }
 
